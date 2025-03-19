@@ -26,7 +26,7 @@ fn main() {
         .title("raylib example - isometric")
         .build();
 
-    let tile = rl.load_texture(&thread, "resources/iso_tile.png").unwrap();
+    let tile = rl.load_texture(&thread, "resources/iso.png").unwrap();
     let tile_width = tile.width as f32 * TEX_SCALE;
 
     let mut u = 0.0;
@@ -48,12 +48,12 @@ fn main() {
                 isometric.x -= tile_width / 2.0;
                 isometric.x += SCREEN_HALF_WIDTH as f32;
 
-                // isometric.y += ((i as f32 + u + 1.0) / 2.0).sin() * 32.0;
-                // isometric.y += ((j as f32 + u + 2.0) / 1.0).sin() * 32.0;
+                isometric.y += ((i as f32 + u + 1.0) / 2.0).sin() * 32.0;
+                isometric.y += ((j as f32 + u + 2.0) / 1.0).sin() * 32.0;
 
-                if (i, j) == (mouse_grid_position.x as i32, mouse_grid_position.y as i32) {
-                    isometric.y -= 16.0;
-                }
+                // if (i, j) == (mouse_grid_position.x as i32, mouse_grid_position.y as i32) {
+                //     isometric.y -= 16.0;
+                // }
 
                 d.draw_texture_ex(&tile, isometric, 0.0, TEX_SCALE, Color::RAYWHITE);
             }
