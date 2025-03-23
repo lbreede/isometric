@@ -4,7 +4,8 @@ const SCREEN_WIDTH: i32 = 1280;
 const SCREEN_HALF_WIDTH: i32 = SCREEN_WIDTH / 2;
 const SCREEN_HEIGHT: i32 = 720;
 
-const TEX_SCALE: f32 = 4.0;
+const TEX_SIZE: i32 = 32;
+const TEX_SCALE: f32 = 128.0 / TEX_SIZE as f32;
 
 fn cartesian_to_isometric(cartesian: Vector2) -> Vector2 {
     Vector2 {
@@ -26,12 +27,17 @@ fn main() {
         .title("raylib example - isometric")
         .build();
 
-    let tile = rl.load_texture(&thread, "resources/iso.png").unwrap();
+    let filename = format!("resources/iso{}.png", TEX_SIZE);
+    let tile = rl.load_texture(&thread, &filename).unwrap();
     let tile_width = tile.width as f32 * TEX_SCALE;
+    let tile_half_width = tile_width / 2.0;
 
     rl.set_target_fps(60);
 
+    let mut destroyed: Vec<(i32, i32)> = Vec::new();
+
     let mut u = 0.0;
+    let mut amplitude = 16.0;
     while !rl.window_should_close() {
         let mut mouse_screen_position = rl.get_mouse_position();
         mouse_screen_position.x -= SCREEN_HALF_WIDTH as f32;
@@ -40,27 +46,54 @@ fn main() {
 
         d.clear_background(Color::RAYWHITE);
 
-        let mouse_grid_position =
-            isometric_to_cartesian(mouse_screen_position) / (tile_width / 2.0);
+        let mouse_grid_position = isometric_to_cartesian(mouse_screen_position) / tile_half_width;
+        // NOTE: Make sure it's _floored_ and not rounded since the origin of the grid is in the
+        // top left corner of the screen.
+        let floored_mouse_grid_position = (
+            mouse_grid_position.x.floor() as i32,
+            mouse_grid_position.y.floor() as i32,
+        );
 
-        for i in 0..10 {
-            for j in 0..10 {
-                let cartesian = Vector2::new(i as f32, j as f32);
-                let mut isometric = cartesian_to_isometric(cartesian) * (tile_width / 2.0);
-                isometric.x -= tile_width / 2.0;
-                isometric.x += SCREEN_HALF_WIDTH as f32;
+        // Destroy tiles
+        if d.is_mouse_button_down(MouseButton::MOUSE_BUTTON_LEFT) {
+            destroyed.push(floored_mouse_grid_position);
+        }
 
-                isometric.y += ((i as f32 + u + 1.0) / 2.0).sin() * 8.0;
-                isometric.y += ((j as f32 + u + 2.0) / 1.0).sin() * 8.0;
+        // Restore tiles
+        if d.is_mouse_button_down(MouseButton::MOUSE_BUTTON_RIGHT) {
+            destroyed.retain(|&x| x != floored_mouse_grid_position);
+        }
 
-                if (i, j) == (mouse_grid_position.x as i32, mouse_grid_position.y as i32) {
-                    isometric.y -= 32.0;
+        amplitude = (amplitude - d.get_mouse_wheel_move()).clamp(0.0, 64.0);
+
+        for i in -8..16 {
+            for j in -8..16 {
+                if destroyed.contains(&(i, j)) {
+                    continue;
                 }
 
-                d.draw_texture_ex(&tile, isometric, 0.0, TEX_SCALE, Color::RAYWHITE);
+                let cartesian = Vector2::new(i as f32, j as f32);
+                let mut isometric = cartesian_to_isometric(cartesian) * tile_half_width;
+                isometric.x -= tile_half_width;
+                isometric.x += SCREEN_HALF_WIDTH as f32;
+
+                isometric.y += ((i as f32 + u + 1.0) / 2.0).sin() * amplitude;
+
+                let mut tint = Color::LIGHTGRAY;
+                if (i, j) == floored_mouse_grid_position {
+                    isometric.y -= 32.0;
+                    tint = Color::WHITE;
+                }
+
+                // Snap to pixel
+                isometric.y /= TEX_SCALE;
+                isometric.y = isometric.y.round();
+                isometric.y *= TEX_SCALE;
+
+                d.draw_texture_ex(&tile, isometric, 0.0, TEX_SCALE, tint);
             }
         }
-        u += 0.05;
+        u += 0.1;
     }
 }
 
