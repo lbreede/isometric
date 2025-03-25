@@ -1,3 +1,5 @@
+use rand::rngs::SmallRng;
+use rand::{Rng, SeedableRng};
 use raylib::prelude::*;
 
 const SCREEN_WIDTH: i32 = 1280;
@@ -17,6 +19,7 @@ struct IsoTexture {
 }
 
 impl IsoTexture {
+    /// Load a texture and calculate the scale factor
     fn new(rl: &mut RaylibHandle, thread: &RaylibThread, path: &str) -> Self {
         let texture = rl.load_texture(thread, path).unwrap();
         let scale = TEXTURE_WIDTH / texture.width() as f32;
@@ -24,29 +27,33 @@ impl IsoTexture {
     }
 }
 
-fn draw_layer(
-    d: &mut RaylibDrawHandle,
-    iso_tex: &IsoTexture,
-    condition: impl Fn(i32, i32) -> bool,
-) {
-    let texture_size = iso_tex.texture.width() as f32 * iso_tex.scale / 2.0;
+/// Generates a pseudo-random but deterministic index based on (x, y)
+fn get_tile_index(x: i32, y: i32, num_variants: usize) -> usize {
+    let seed = (x * 73856093) ^ (y * 19349663); // Hash function
+    let mut rng = SmallRng::seed_from_u64(seed as u64);
+    rng.random_range(0..num_variants)
+}
+
+fn draw_layer_fixed(d: &mut RaylibDrawHandle, textures: &[IsoTexture]) {
+    let texture_size = textures[0].texture.width() as f32 * textures[0].scale / 2.0;
     let x_offset = SCREEN_WIDTH as f32 / 2.0 - texture_size;
 
     for y in 0..10 {
         for x in 0..10 {
-            if condition(x, y) {
-                let cartesian = Vector2::new(x as f32, y as f32);
-                let mut isometric = to_isometric(cartesian) * texture_size;
-                isometric.x += x_offset;
+            let cartesian = Vector2::new(x as f32, y as f32);
+            let mut isometric = to_isometric(cartesian) * texture_size;
+            isometric.x += x_offset;
 
-                d.draw_texture_ex(
-                    &iso_tex.texture,
-                    isometric,
-                    0.0,
-                    iso_tex.scale,
-                    Color::WHITE,
-                );
-            }
+            let index = get_tile_index(x, y, textures.len()); // Fixed texture index per (x, y)
+            let selected_texture = &textures[index];
+
+            d.draw_texture_ex(
+                &selected_texture.texture,
+                isometric,
+                0.0,
+                selected_texture.scale,
+                Color::WHITE,
+            );
         }
     }
 }
@@ -57,8 +64,12 @@ fn main() {
         .title("raylib example - isometric")
         .build();
 
-    let dirt_texture = IsoTexture::new(&mut rl, &thread, "resources/dirt_E.png");
-    let chimney_texture = IsoTexture::new(&mut rl, &thread, "resources/chimneyBase_E.png");
+    let dirt_textures = vec![
+        IsoTexture::new(&mut rl, &thread, "resources/dirt_N.png"),
+        IsoTexture::new(&mut rl, &thread, "resources/dirt_E.png"),
+        IsoTexture::new(&mut rl, &thread, "resources/dirt_S.png"),
+        IsoTexture::new(&mut rl, &thread, "resources/dirt_W.png"),
+    ];
 
     rl.set_target_fps(60);
 
@@ -66,10 +77,7 @@ fn main() {
         let mut d = rl.begin_drawing(&thread);
         d.clear_background(Color::RAYWHITE);
 
-        // Draw first layer (always drawn)
-        draw_layer(&mut d, &dirt_texture, |_, _| true);
-
-        // Draw second layer (only on certain tiles)
-        draw_layer(&mut d, &chimney_texture, |x, y| x % 3 == 0 && y % 3 == 0);
+        // Draw first layer with deterministic random textures
+        draw_layer_fixed(&mut d, &dirt_textures);
     }
 }
